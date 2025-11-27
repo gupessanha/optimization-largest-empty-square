@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from shapely.geometry import Polygon as ShapelyPolygon, Point
-from solver import find_largest_square
+from solver import find_largest_rectangle
 
 class Polygon:
     def __init__(self, points, color='green'):
@@ -84,14 +84,14 @@ class Canvas:
             circle_patch = plt.Circle(circle.center, circle.radius, fill=None, edgecolor=circle.color)
             ax.add_patch(circle_patch)
 
-        # Encontra e desenha o maior quadrado vazio
-        cx, cy, r = find_largest_square(self, resolution=20)
-        print(f"Maior quadrado encontrado: Centro=({cx:.2f}, {cy:.2f}), Lado={2*r:.2f}")
+        # Encontra e desenha o maior retângulo vazio
+        cx, cy, w, h = find_largest_rectangle(self, resolution=20)
+        print(f"Maior retângulo encontrado: Centro=({cx:.2f}, {cy:.2f}), Largura={w:.2f}, Altura={h:.2f}, Área={w*h:.2f}")
         
-        # Desenha o quadrado (Rectangle recebe canto inferior esquerdo, largura, altura)
-        square_patch = plt.Rectangle((cx - r, cy - r), 2*r, 2*r, 
-                                     fill=True, color='orange', alpha=0.5, label='Maior Quadrado Vazio')
-        ax.add_patch(square_patch)
+        # Desenha o retângulo (Rectangle recebe canto inferior esquerdo, largura, altura)
+        rect_patch = plt.Rectangle((cx - w/2, cy - h/2), w, h, 
+                                     fill=True, color='orange', alpha=0.5, label='Maior Retângulo Vazio')
+        ax.add_patch(rect_patch)
         ax.plot(cx, cy, 'x', color='black') # Marca o centro
         ax.legend()
 
