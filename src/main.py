@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from shapely.geometry import Polygon as ShapelyPolygon, Point
+from solver import find_largest_square
 
 class Polygon:
     def __init__(self, points, color='green'):
@@ -83,6 +84,17 @@ class Canvas:
             circle_patch = plt.Circle(circle.center, circle.radius, fill=None, edgecolor=circle.color)
             ax.add_patch(circle_patch)
 
+        # Encontra e desenha o maior quadrado vazio
+        cx, cy, r = find_largest_square(self, resolution=20)
+        print(f"Maior quadrado encontrado: Centro=({cx:.2f}, {cy:.2f}), Lado={2*r:.2f}")
+        
+        # Desenha o quadrado (Rectangle recebe canto inferior esquerdo, largura, altura)
+        square_patch = plt.Rectangle((cx - r, cy - r), 2*r, 2*r, 
+                                     fill=True, color='orange', alpha=0.5, label='Maior Quadrado Vazio')
+        ax.add_patch(square_patch)
+        ax.plot(cx, cy, 'x', color='black') # Marca o centro
+        ax.legend()
+
         plt.savefig('canvas.png')
    
 
@@ -96,7 +108,7 @@ if __name__ == "__main__":
     canvas.add_polygon(triangle)
     
     # Adiciona segundo objeto (sucesso)
-    circle = Circle(center=(30, 30), radius=5, color='blue')
+    circle = Circle(center=(25, 5), radius=5, color='blue')
     canvas.add_circle(circle)
     
     square = Polygon(points=[(20, 20), (25, 20), (25, 25), (20, 25)], color='green')
