@@ -23,6 +23,13 @@ class Canvas:
         self.geometry_objects = []
         
     def add_polygon(self, polygon):
+        
+        if len(polygon.points) < 3:
+            raise ValueError("Um polígono deve ter pelo menos 3 pontos.")
+        
+        if any(not (0 <= x <= self.x_dimension and 0 <= y <= self.y_dimension) for x, y in polygon.points):
+            raise ValueError("Pontos do polígono fora dos limites do canvas.")
+        
         new_shape = ShapelyPolygon(polygon.points)
         
         for shape in self.geometry_objects:
@@ -35,6 +42,16 @@ class Canvas:
     
     
     def add_circle(self, circle):
+        
+        if not (0 <= circle.center[0] <= self.x_dimension and 0 <= circle.center[1] <= self.y_dimension):
+            raise ValueError("Centro do círculo fora dos limites do canvas.")
+        
+        if circle.radius <= 0:
+            raise ValueError("O raio do círculo deve ser positivo.")
+        
+        if not (0 <= circle.center[0] - circle.radius and circle.center[0] + circle.radius <= self.x_dimension and
+            0 <= circle.center[1] - circle.radius and circle.center[1] + circle.radius <= self.y_dimension):
+            raise ValueError("O círculo excede os limites do canvas.")
         
         new_shape = Point(circle.center).buffer(circle.radius)
         
@@ -72,7 +89,7 @@ class Canvas:
 
 if __name__ == "__main__":
  
-    canvas = Canvas(50, 50)
+    canvas = Canvas(30, 30)
     
     # Adiciona primeiro objeto (sucesso)
     triangle = Polygon(points=[(10, 15), (1, 2), (7, 2)], color='red')
