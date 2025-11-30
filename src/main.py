@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from shapely.geometry import Polygon as ShapelyPolygon, Point
 from solver import find_largest_rectangle
+from optimizer import optimize_layout
 
 class Polygon:
     def __init__(self, points, color='green'):
@@ -64,7 +65,7 @@ class Canvas:
         self.circles.append(circle)
         return True
     
-    def plot_workcanvas(self):
+    def plot_workcanvas(self, filename='canvas.png'):
         fig, ax = plt.subplots(figsize=(self.x_dimension * 0.5, self.y_dimension * 0.5))
         ax.set_xlim(0, self.x_dimension)
         ax.set_ylim(0, self.y_dimension)
@@ -95,7 +96,8 @@ class Canvas:
         ax.plot(cx, cy, 'x', color='black') # Marca o centro
         ax.legend()
 
-        plt.savefig('canvas.png')
+        plt.savefig(filename)
+        plt.close(fig) # Fecha a figura para liberar memória
    
 
 
@@ -118,4 +120,15 @@ if __name__ == "__main__":
     # coliding_circle = Circle(center=(5, 5), radius=5, color='yellow')
     # canvas.add_circle(coliding_circle)
 
-    canvas.plot_workcanvas()
+    print("Calculando maior retângulo na configuração inicial...")
+    # Salva o estado inicial
+    canvas.plot_workcanvas(filename='canvas_initial.png')
+    
+    cx, cy, w, h = find_largest_rectangle(canvas, resolution=20)
+    print(f"Inicial: Área={w*h:.2f}")
+
+    # Otimiza o layout
+    optimize_layout(canvas, max_iter=5) # Poucas iterações para teste rápido
+
+    # Salva o estado otimizado
+    canvas.plot_workcanvas(filename='canvas_optimized.png')
