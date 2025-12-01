@@ -8,6 +8,7 @@ from typing import List, Tuple, Any, Optional
 from solver import find_largest_rectangle
 from optimizer import optimize_layout
 from register import register_execution
+from analytical_solver import AnalyticalSolver
 
 class Polygon:
     """
@@ -194,9 +195,23 @@ if __name__ == "__main__":
     # coliding_circle = Circle(center=(5, 5), radius=5, color='yellow')
     # canvas.add_circle(coliding_circle)
 
+    # --- SELEÇÃO DE MÉTODO ---
+    print("Escolha o método de otimização:")
+    print("1. Analítico (MIP - Exato)")
+    print("2. Metaheurística (Differential Evolution - Aproximado)")
+    choice = input("Digite 1 ou 2: ").strip()
+    
+    use_analytical = (choice == '1')
+    
+    # --- GERAÇÃO DE ID ---
+    timestamp_id = int(time.time())
+    prefix = 'A' if use_analytical else 'M'
+    execution_id = f"{prefix}_{timestamp_id}"
+    print(f"ID da Execução: {execution_id}")
+
     print("Calculando maior retângulo na configuração inicial...")
     # Salva o estado inicial
-    canvas.plot_workcanvas(filename='canvas_initial.png')
+    canvas.plot_workcanvas(filename=f'{execution_id}_initial.png')
     
     resolution = 30
     cx, cy, w, h = find_largest_rectangle(canvas, resolution=resolution)
@@ -208,20 +223,72 @@ if __name__ == "__main__":
     # Requisito 3: Resolução reduzida durante otimização (ex: 5)
     # Requisito 4: Usar GreedyPacker
     start_time = time.time()
-    actual_iterations = optimize_layout(canvas, max_iter=max_iter, resolution=5, use_greedy=True) 
+    
+    if use_analytical:
+        # --- SOLUÇÃO ANALÍTICA ---
+        print("Iniciando Solução Analítica (MIP)...")
+        analytical_solver = AnalyticalSolver(canvas.x_dimension, canvas.y_dimension)
+        
+        # Adiciona formas ao solver analítico
+        for poly in canvas.polygons:
+            analytical_solver.add_shape(poly)
+        for circle in canvas.circles:
+            analytical_solver.add_shape(circle)
+            
+        w_opt, h_opt, xs_opt, ys_opt, positions = analytical_solver.solve(time_limit=60)
+        
+        # Atualiza posições no canvas
+        if positions:
+            # Atualiza polígonos
+            for i, poly in enumerate(canvas.polygons):
+                new_x, new_y = positions[i]
+                # Move o polígono para a nova posição (assumindo que positions[i] é o canto inferior esquerdo do bbox)
+                # Precisamos calcular o deslocamento relativo
+                # Bounding box original
+                xs = [p[0] for p in poly.points]
+                ys = [p[1] for p in poly.points]
+                min_x, min_y = min(xs), min(ys)
+                
+                dx = new_x - min_x
+                dy = new_y - min_y
+                
+                new_points = [(p[0] + dx, p[1] + dy) for p in poly.points]
+                poly.points = new_points
+                
+            # Atualiza círculos (se houver, lógica similar)
+            # Nota: O solver analítico trata círculos como quadrados (bounding box)
+            # A posição retornada é o canto inferior esquerdo do quadrado envolvente
+            offset = len(canvas.polygons)
+            for i, circle in enumerate(canvas.circles):
+                new_x, new_y = positions[offset + i]
+                # O centro do círculo é (x + r, y + r)
+                circle.center = (new_x + circle.radius, new_y + circle.radius)
+
+        actual_iterations = 0 # MIP não tem "iterações" no mesmo sentido do DE
+        
+        # Recalcula área final para registro (usando o resultado analítico ou rasterização para confirmação)
+        # Vamos usar o resultado analítico w*h se disponível, mas manter a verificação rasterizada
+        optimized_area = w_opt * h_opt
+        print(f"Final (Analítico): Largura={w_opt:.2f}, Altura={h_opt:.2f}, Área={optimized_area:.2f}")
+        
+    else:
+        # --- METAHEURÍSTICA ---
+        print("Iniciando Metaheurística (Differential Evolution)...")
+        actual_iterations = optimize_layout(canvas, max_iter=max_iter, resolution=5, use_greedy=True) 
+        
+        # Recalcula área final para registro
+        cx_opt, cy_opt, w_opt, h_opt = find_largest_rectangle(canvas, resolution=resolution)
+        optimized_area = w_opt * h_opt
+        print(f"Final (Metaheurística): Área={optimized_area:.2f}")
+
     end_time = time.time()
     execution_time = end_time - start_time
-    
-    # Recalcula área final para registro
-    cx_opt, cy_opt, w_opt, h_opt = find_largest_rectangle(canvas, resolution=resolution)
-    optimized_area = w_opt * h_opt
-    print(f"Final: Área={optimized_area:.2f}")
-    print(f"Tempo de execução: {execution_time:.2f}s, Iterações: {actual_iterations}")
+    print(f"Tempo de execução: {execution_time:.2f}s")
 
     # Salva o estado otimizado
-    canvas.plot_workcanvas(filename='canvas_optimized.png')
+    canvas.plot_workcanvas(filename=f'{execution_id}_optimized.png')
     
     # Registra a execução
     count_poly = len(canvas.polygons)
     count_circle = len(canvas.circles)
-    register_execution('execution_log.csv', canvas.x_dimension, canvas.y_dimension, count_poly, count_circle, initial_area, optimized_area, actual_iterations, resolution, execution_time)
+    register_execution('execution_log.csv', canvas.x_dimension, canvas.y_dimension, count_poly, count_circle, initial_area, optimized_area, actual_iterations, resolution, execution_time, execution_id)

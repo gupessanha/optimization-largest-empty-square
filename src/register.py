@@ -2,7 +2,7 @@ import csv
 import os
 from datetime import datetime
 
-def register_execution(filename, canvas_width, canvas_height, num_polygons, num_circles, initial_area, optimized_area, iterations, resolution, execution_time):
+def register_execution(filename, canvas_width, canvas_height, num_polygons, num_circles, initial_area, optimized_area, iterations, resolution, execution_time, execution_id):
     """
     Registra os dados da execução em um arquivo CSV.
     """
@@ -14,6 +14,7 @@ def register_execution(filename, canvas_width, canvas_height, num_polygons, num_
         # Escreve o cabeçalho se o arquivo não existir
         if not file_exists:
             writer.writerow([
+                'ID',
                 'Timestamp', 
                 'Canvas Width', 
                 'Canvas Height', 
@@ -27,6 +28,7 @@ def register_execution(filename, canvas_width, canvas_height, num_polygons, num_
             ])
             
         writer.writerow([
+            execution_id,
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             canvas_width,
             canvas_height,
