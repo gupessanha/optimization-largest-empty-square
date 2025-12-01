@@ -1,8 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import random
 from shapely.geometry import Polygon as ShapelyPolygon, Point
 from solver import find_largest_rectangle
 from optimizer import optimize_layout
+from register import register_execution
 
 class Polygon:
     def __init__(self, points, color='green'):
@@ -106,7 +108,7 @@ if __name__ == "__main__":
     canvas = Canvas(30, 30)
     
     # Adiciona primeiro objeto (sucesso)
-    triangle = Polygon(points=[(10, 15), (1, 2), (7, 2)], color='red')
+    triangle = Polygon(points=[(4, 6), (1, 2), (7, 2)], color='red')
     canvas.add_polygon(triangle)
     
     # Adiciona segundo objeto (sucesso)
@@ -116,6 +118,16 @@ if __name__ == "__main__":
     square = Polygon(points=[(20, 20), (25, 20), (25, 25), (20, 25)], color='green')
     canvas.add_polygon(square)
     
+    triangle2 = Polygon(points=[(10, 25), (15, 28), (12, 22)], color='purple')
+    canvas.add_polygon(triangle2)
+    
+    square2 = Polygon(points=[(5, 15), (10, 15), (10, 20), (5, 20)], color='brown')
+    
+    triangle3 = Polygon(points=[(15, 5), (18, 10), (12, 10)], color='cyan')
+    canvas.add_polygon(triangle3)
+    
+    square3 = Polygon(points=[(22, 12), (27, 12), (27, 17), (22, 17)], color='magenta')
+    
     # Adiciona um objeto que colide com o triângulo (falha)
     # coliding_circle = Circle(center=(5, 5), radius=5, color='yellow')
     # canvas.add_circle(coliding_circle)
@@ -124,11 +136,25 @@ if __name__ == "__main__":
     # Salva o estado inicial
     canvas.plot_workcanvas(filename='canvas_initial.png')
     
-    cx, cy, w, h = find_largest_rectangle(canvas, resolution=20)
-    print(f"Inicial: Área={w*h:.2f}")
+    resolution = 20
+    cx, cy, w, h = find_largest_rectangle(canvas, resolution=resolution)
+    initial_area = w * h
+    print(f"Inicial: Área={initial_area:.2f}")
 
     # Otimiza o layout
-    optimize_layout(canvas, max_iter=500) # Poucas iterações para teste rápido
+    max_iter = 1000
+    optimize_layout(canvas, max_iter=max_iter) 
+    
+    # Recalcula área final para registro
+    cx_opt, cy_opt, w_opt, h_opt = find_largest_rectangle(canvas, resolution=resolution)
+    optimized_area = w_opt * h_opt
+    print(f"Final: Área={optimized_area:.2f}")
 
     # Salva o estado otimizado
     canvas.plot_workcanvas(filename='canvas_optimized.png')
+    
+    # Registra a execução
+    # Como não temos count_poly e count_circle definidos neste bloco (código antigo), vamos contar manualmente
+    count_poly = len(canvas.polygons)
+    count_circle = len(canvas.circles)
+    register_execution('execution_log.csv', canvas.x_dimension, canvas.y_dimension, count_poly, count_circle, initial_area, optimized_area, max_iter, resolution)
