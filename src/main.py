@@ -2,32 +2,76 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 from shapely.geometry import Polygon as ShapelyPolygon, Point
+from typing import List, Tuple, Any, Optional
+
 from solver import find_largest_rectangle
 from optimizer import optimize_layout
 from register import register_execution
 
 class Polygon:
-    def __init__(self, points, color='green'):
+    """
+    Representa um polígono no canvas.
+    """
+    def __init__(self, points: List[Tuple[float, float]], color: str = 'green'):
+        """
+        Inicializa um polígono.
+
+        Args:
+            points (List[Tuple[float, float]]): Lista de coordenadas (x, y) dos vértices.
+            color (str, optional): Cor do polígono para plotagem. Padrão é 'green'.
+        """
         self.points = points 
         self.color = color
         self.lines = []
         
 class Circle:
-    def __init__(self, center, radius, color='green'):
+    """
+    Representa um círculo no canvas.
+    """
+    def __init__(self, center: Tuple[float, float], radius: float, color: str = 'green'):
+        """
+        Inicializa um círculo.
+
+        Args:
+            center (Tuple[float, float]): Coordenadas (x, y) do centro.
+            radius (float): Raio do círculo.
+            color (str, optional): Cor do círculo para plotagem. Padrão é 'green'.
+        """
         self.center = center
         self.radius = radius
         self.color = color
 
 class Canvas:
-    def __init__(self, x_dimension, y_dimension):
+    """
+    Representa a área de trabalho onde as formas são posicionadas.
+    """
+    def __init__(self, x_dimension: float, y_dimension: float):
+        """
+        Inicializa o canvas.
+
+        Args:
+            x_dimension (float): Largura do canvas.
+            y_dimension (float): Altura do canvas.
+        """
         self.x_dimension = x_dimension
         self.y_dimension = y_dimension
-        self.polygons = []
-        self.circles = []
-        self.geometry_objects = []
+        self.polygons: List[Polygon] = []
+        self.circles: List[Circle] = []
+        self.geometry_objects: List[Any] = [] # Objetos Shapely
         
-    def add_polygon(self, polygon):
-        
+    def add_polygon(self, polygon: Polygon) -> bool:
+        """
+        Adiciona um polígono ao canvas se não houver colisão.
+
+        Args:
+            polygon (Polygon): O polígono a ser adicionado.
+
+        Returns:
+            bool: True se adicionado com sucesso.
+
+        Raises:
+            ValueError: Se o polígono for inválido ou colidir.
+        """
         if len(polygon.points) < 3:
             raise ValueError("Um polígono deve ter pelo menos 3 pontos.")
         
@@ -40,13 +84,24 @@ class Canvas:
             if new_shape.intersects(shape):
                 raise ValueError("Colisão detectada! Polígono não adicionado.")
         
-        self .geometry_objects.append(new_shape)
+        self.geometry_objects.append(new_shape)
         self.polygons.append(polygon)
         return True
     
     
-    def add_circle(self, circle):
-        
+    def add_circle(self, circle: Circle) -> bool:
+        """
+        Adiciona um círculo ao canvas se não houver colisão.
+
+        Args:
+            circle (Circle): O círculo a ser adicionado.
+
+        Returns:
+            bool: True se adicionado com sucesso.
+
+        Raises:
+            ValueError: Se o círculo for inválido ou colidir.
+        """
         if not (0 <= circle.center[0] <= self.x_dimension and 0 <= circle.center[1] <= self.y_dimension):
             raise ValueError("Centro do círculo fora dos limites do canvas.")
         
@@ -67,7 +122,13 @@ class Canvas:
         self.circles.append(circle)
         return True
     
-    def plot_workcanvas(self, filename='canvas.png'):
+    def plot_workcanvas(self, filename: str = 'canvas.png') -> None:
+        """
+        Gera e salva uma imagem do canvas com as formas e o maior retângulo vazio.
+
+        Args:
+            filename (str, optional): Caminho do arquivo de saída. Padrão é 'canvas.png'.
+        """
         fig, ax = plt.subplots(figsize=(self.x_dimension * 0.5, self.y_dimension * 0.5))
         ax.set_xlim(0, self.x_dimension)
         ax.set_ylim(0, self.y_dimension)
@@ -97,7 +158,7 @@ class Canvas:
         ax.add_patch(rect_patch)
         ax.plot(cx, cy, 'x', color='black') # Marca o centro
         ax.legend()
-
+        
         plt.savefig(filename)
         plt.close(fig) # Fecha a figura para liberar memória
    
@@ -112,8 +173,8 @@ if __name__ == "__main__":
     canvas.add_polygon(triangle)
     
     # Adiciona segundo objeto (sucesso)
-    circle = Circle(center=(25, 5), radius=5, color='blue')
-    canvas.add_circle(circle)
+    # circle = Circle(center=(25, 5), radius=5, color='blue')
+    # canvas.add_circle(circle)
     
     square = Polygon(points=[(20, 20), (25, 20), (25, 25), (20, 25)], color='green')
     canvas.add_polygon(square)
@@ -136,13 +197,16 @@ if __name__ == "__main__":
     # Salva o estado inicial
     canvas.plot_workcanvas(filename='canvas_initial.png')
     
-    resolution = 20
+    resolution = 70
     cx, cy, w, h = find_largest_rectangle(canvas, resolution=resolution)
     initial_area = w * h
     print(f"Inicial: Área={initial_area:.2f}")
 
     # Otimiza o layout
-    optimize_layout(canvas, max_iter=1000) 
+    max_iter = 3000
+    # Requisito 3: Resolução reduzida durante otimização (ex: 5)
+    # Requisito 4: Usar GreedyPacker
+    optimize_layout(canvas, max_iter=max_iter, resolution=5, use_greedy=True) 
     
     # Recalcula área final para registro
     cx_opt, cy_opt, w_opt, h_opt = find_largest_rectangle(canvas, resolution=resolution)
@@ -153,7 +217,6 @@ if __name__ == "__main__":
     canvas.plot_workcanvas(filename='canvas_optimized.png')
     
     # Registra a execução
-    # Como não temos count_poly e count_circle definidos neste bloco (código antigo), vamos contar manualmente
     count_poly = len(canvas.polygons)
     count_circle = len(canvas.circles)
     register_execution('execution_log.csv', canvas.x_dimension, canvas.y_dimension, count_poly, count_circle, initial_area, optimized_area, max_iter, resolution)

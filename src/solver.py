@@ -1,10 +1,23 @@
 import numpy as np
 from PIL import Image, ImageDraw
+from typing import Tuple, Any
 
-def largest_rectangle_area(heights):
+def largest_rectangle_area(heights: np.ndarray) -> Tuple[int, int, int, int]:
     """
-    Encontra o maior retângulo em um histograma.
-    Retorna (max_area, height, x_start, width)
+    Calcula o maior retângulo possível em um histograma.
+
+    Esta função utiliza um algoritmo baseado em pilha para encontrar a maior área retangular
+    em um histograma em tempo linear O(N).
+
+    Args:
+        heights (np.ndarray): Array numpy contendo as alturas das barras do histograma.
+
+    Returns:
+        Tuple[int, int, int, int]: Uma tupla contendo:
+            - max_area (int): A área máxima encontrada.
+            - height (int): A altura do retângulo.
+            - x_start (int): O índice inicial (coluna) do retângulo.
+            - width (int): A largura do retângulo.
     """
     stack = [-1]
     max_area = 0
@@ -26,16 +39,25 @@ def largest_rectangle_area(heights):
         
     return best_rect
 
-def find_largest_rectangle(canvas, resolution=10):
+def find_largest_rectangle_raster(canvas: Any, resolution: int = 10) -> Tuple[float, float, float, float]:
     """
-    Encontra o maior retângulo vazio no canvas.
-    
+    Encontra o maior retângulo vazio no canvas utilizando rasterização.
+
+    Esta função converte o canvas vetorial (polígonos e círculos) em uma grade discreta (imagem)
+    e aplica o algoritmo de "Maior Retângulo em Histograma" iterativamente para cada linha da imagem.
+    É uma abordagem aproximada cuja precisão depende da resolução escolhida.
+
     Args:
-        canvas: Objeto Canvas contendo as dimensões e obstáculos.
-        resolution: Pixels por unidade de medida do canvas.
-        
+        canvas (Canvas): O objeto Canvas contendo as dimensões e a lista de obstáculos (polígonos e círculos).
+        resolution (int, optional): A resolução da rasterização em pixels por unidade de medida. 
+                                    Padrão é 10. Valores maiores aumentam a precisão e o tempo de execução.
+
     Returns:
-        tuple: (center_x, center_y, width, height)
+        Tuple[float, float, float, float]: Uma tupla contendo:
+            - center_x (float): A coordenada X do centro do maior retângulo vazio.
+            - center_y (float): A coordenada Y do centro do maior retângulo vazio.
+            - width (float): A largura do retângulo encontrado.
+            - height (float): A altura do retângulo encontrado.
     """
     width_px = int(canvas.x_dimension * resolution)
     height_px = int(canvas.y_dimension * resolution)
@@ -90,7 +112,7 @@ def find_largest_rectangle(canvas, resolution=10):
             best_rect_global = (x_start, row, w, h)
             
     if best_rect_global is None:
-        return 0, 0, 0, 0
+        return 0.0, 0.0, 0.0, 0.0
 
     x_px_start, y_px_bottom, w_px, h_px = best_rect_global
     
@@ -107,3 +129,6 @@ def find_largest_rectangle(canvas, resolution=10):
     center_y = (height_px - y_center_img) / resolution
     
     return center_x, center_y, width, height
+
+# Alias para manter compatibilidade
+find_largest_rectangle = find_largest_rectangle_raster
