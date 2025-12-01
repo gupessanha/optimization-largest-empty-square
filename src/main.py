@@ -142,8 +142,7 @@ if __name__ == "__main__":
     print(f"Inicial: Área={initial_area:.2f}")
 
     # Otimiza o layout
-    max_iter = 1000
-    optimize_layout(canvas, max_iter=max_iter) 
+    optimize_layout(canvas, max_iter=1000) 
     
     # Recalcula área final para registro
     cx_opt, cy_opt, w_opt, h_opt = find_largest_rectangle(canvas, resolution=resolution)
