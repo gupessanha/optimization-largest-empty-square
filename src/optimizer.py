@@ -138,7 +138,7 @@ def optimize_layout(canvas, max_iter=10):
         bounds,
         args=(shape_templates, (canvas.x_dimension, canvas.y_dimension)),
         maxiter=max_iter,
-        popsize=5, # População pequena para ser rápido no teste
+        popsize=15, # População pequena para ser rápido no teste
         mutation=(0.5, 1),
         recombination=0.7,
         disp=True,

@@ -128,7 +128,7 @@ if __name__ == "__main__":
     print(f"Inicial: Área={w*h:.2f}")
 
     # Otimiza o layout
-    optimize_layout(canvas, max_iter=5) # Poucas iterações para teste rápido
+    optimize_layout(canvas, max_iter=500) # Poucas iterações para teste rápido
 
     # Salva o estado otimizado
     canvas.plot_workcanvas(filename='canvas_optimized.png')
