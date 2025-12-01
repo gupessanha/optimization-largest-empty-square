@@ -112,7 +112,7 @@ def objective_function(position_vector: np.ndarray, shape_templates: List[Any], 
     
     return -area # Maximizar área = Minimizar negativa
 
-def optimize_layout(canvas: Any, max_iter: int = 10, resolution: int = 5, use_greedy: bool = True) -> bool:
+def optimize_layout(canvas: Any, max_iter: int = 10, resolution: int = 5, use_greedy: bool = True) -> int:
     """
     Otimiza a posição das formas no canvas utilizando Differential Evolution.
 
@@ -123,7 +123,7 @@ def optimize_layout(canvas: Any, max_iter: int = 10, resolution: int = 5, use_gr
         use_greedy (bool, optional): Se True, utiliza o algoritmo GreedyPacker para gerar uma solução inicial. Padrão é True.
 
     Returns:
-        bool: True se a otimização foi concluída com sucesso.
+        int: Número de iterações realizadas.
     """
     # Backup dos objetos originais para restaurar propriedades (cor)
     original_polygons = list(canvas.polygons)
@@ -273,4 +273,4 @@ def optimize_layout(canvas: Any, max_iter: int = 10, resolution: int = 5, use_gr
         
         current_idx += 1
         
-    return True
+    return result.nit

@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import random
+import time
 from shapely.geometry import Polygon as ShapelyPolygon, Point
 from typing import List, Tuple, Any, Optional
 
@@ -197,21 +198,25 @@ if __name__ == "__main__":
     # Salva o estado inicial
     canvas.plot_workcanvas(filename='canvas_initial.png')
     
-    resolution = 70
+    resolution = 30
     cx, cy, w, h = find_largest_rectangle(canvas, resolution=resolution)
     initial_area = w * h
     print(f"Inicial: Área={initial_area:.2f}")
 
     # Otimiza o layout
-    max_iter = 3000
+    max_iter = 1000
     # Requisito 3: Resolução reduzida durante otimização (ex: 5)
     # Requisito 4: Usar GreedyPacker
-    optimize_layout(canvas, max_iter=max_iter, resolution=5, use_greedy=True) 
+    start_time = time.time()
+    actual_iterations = optimize_layout(canvas, max_iter=max_iter, resolution=5, use_greedy=True) 
+    end_time = time.time()
+    execution_time = end_time - start_time
     
     # Recalcula área final para registro
     cx_opt, cy_opt, w_opt, h_opt = find_largest_rectangle(canvas, resolution=resolution)
     optimized_area = w_opt * h_opt
     print(f"Final: Área={optimized_area:.2f}")
+    print(f"Tempo de execução: {execution_time:.2f}s, Iterações: {actual_iterations}")
 
     # Salva o estado otimizado
     canvas.plot_workcanvas(filename='canvas_optimized.png')
@@ -219,4 +224,4 @@ if __name__ == "__main__":
     # Registra a execução
     count_poly = len(canvas.polygons)
     count_circle = len(canvas.circles)
-    register_execution('execution_log.csv', canvas.x_dimension, canvas.y_dimension, count_poly, count_circle, initial_area, optimized_area, max_iter, resolution)
+    register_execution('execution_log.csv', canvas.x_dimension, canvas.y_dimension, count_poly, count_circle, initial_area, optimized_area, actual_iterations, resolution, execution_time)
