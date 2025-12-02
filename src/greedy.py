@@ -41,12 +41,13 @@ class GreedyPacker:
                 return False
         return True
 
-    def pack(self, shapes: List[Any]) -> List[Tuple[float, float, float]]:
+    def pack(self, shapes: List[Any], corner: str = 'BL') -> List[Tuple[float, float, float]]:
         """
         Executa o empacotamento.
         
         Args:
             shapes: Lista de objetos (Polygon ou Circle) a serem empacotados.
+            corner: Canto de início ('BL', 'BR', 'TL', 'TR'). Padrão 'BL' (Bottom-Left).
             
         Returns:
             List[Tuple]: Lista de configurações finais para cada shape na ordem original.
@@ -83,16 +84,29 @@ class GreedyPacker:
         # 2. Ordenar por área decrescente
         items.sort(key=lambda x: x['area'], reverse=True)
 
+        # Configura faixas de busca baseadas no canto escolhido
+        # BL: x asc, y asc
+        # BR: x desc, y asc
+        # TL: x asc, y desc
+        # TR: x desc, y desc
+        
+        x_vals = np.arange(0, self.width, self.step)
+        y_vals = np.arange(0, self.height, self.step)
+        
+        if 'R' in corner: # Right
+            x_vals = x_vals[::-1]
+        if 'T' in corner: # Top
+            y_vals = y_vals[::-1]
+
         # 3. Loop de posicionamento
         for item in items:
             placed = False
             geom_base = item['geom'] # Centrado em 0,0
             
             # Grid search
-            # Otimização: passo adaptativo ou busca espiral poderia ser melhor, mas vamos de grid simples
-            for y in np.arange(0, self.height, self.step):
+            for y in y_vals:
                 if placed: break
-                for x in np.arange(0, self.width, self.step):
+                for x in x_vals:
                     if placed: break
                     
                     # Tenta rotações
@@ -108,24 +122,6 @@ class GreedyPacker:
                         rotated = affinity.rotate(geom_base, angle, origin=(0,0))
                         
                         # 2. Translada para posição candidata (x,y)
-                        # Assumimos que x,y é o CENTROIDE ou o CANTO INFERIOR ESQUERDO?
-                        # O DE usa (x,y) como translação dos pontos relativos.
-                        # Se os pontos relativos são em relação ao centroide, então x,y é o novo centroide.
-                        # Vamos assumir x,y como centroide para consistência com a lógica de "move_to" do DE.
-                        
-                        # Mas espere, o DE usa:
-                        # x, y = position_vector[...]
-                        # new_points = [(px + x, py + y) for px, py in template]
-                        # Onde template são pontos relativos ao centroide.
-                        # Então (x,y) É a posição do centroide.
-                        
-                        # Porém, o GreedyPacker do test.py usava bounding box minx, miny.
-                        # Vamos usar centroide aqui para alinhar com o DE.
-                        # Mas para "encostar" nos cantos, usar bounding box é melhor.
-                        # Vamos calcular o offset necessário para que o bbox min fique em x,y da grade?
-                        # Não, vamos testar posições de centroide na grade.
-                        # Se a grade for fina o suficiente, funciona.
-                        
                         candidate = affinity.translate(rotated, xoff=x, yoff=y)
                         
                         if self._is_valid(candidate):

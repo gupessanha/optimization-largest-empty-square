@@ -1,0 +1,229 @@
+\documentclass{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[portuguese]{babel}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+
+\title[Otimização de Layout]{Otimização de Layout e Maior Retângulo Vazio}
+\subtitle{Comparação entre Solução Analítica (MIP) e Metaheurística (Evolução Diferencial)}
+\author{Gustavo Pessanha}
+\date{\today}
+
+\begin{document}
+
+% --- Slide de Título ---
+\begin{frame}
+    \titlepage
+\end{frame}
+
+% --- Sumário ---
+\begin{frame}{Sumário}
+    \tableofcontents
+\end{frame}
+
+% ============================================================================
+% SEÇÃO 1: INTRODUÇÃO
+% ============================================================================
+\section{Introdução do Problema}
+
+\begin{frame}{O Problema do Maior Retângulo Vazio}
+    \textbf{Objetivo:}
+    Encontrar a melhor disposição de um conjunto de obstáculos (polígonos e círculos) dentro de uma área de trabalho (canvas) de forma a maximizar a área do maior retângulo livre (vazio) possível.
+
+    \vspace{0.5cm}
+    \textbf{Aplicações Práticas:}
+    \begin{itemize}
+        \item Corte de materiais (guilhotina).
+        \item Design de layouts industriais.
+        \item Posicionamento de janelas em interfaces gráficas.
+    \end{itemize}
+
+    \vspace{0.5cm}
+    \textbf{Desafio:}
+    É um problema de otimização combinatória e geométrica complexo (NP-difícil), envolvendo empacotamento (Packing) e geometria computacional.
+\end{frame}
+
+\begin{frame}{Visualização do Problema}
+    \begin{columns}
+        \column{0.5\textwidth}
+        \textbf{Entrada:}
+        \begin{itemize}
+            \item Dimensões do Canvas ($W \times H$).
+            \item Lista de formas (Polígonos, Círculos).
+        \end{itemize}
+        
+        \vspace{0.5cm}
+        \textbf{Saída:}
+        \begin{itemize}
+            \item Coordenadas $(x_i, y_i)$ para cada forma.
+            \item Dimensões $(w, h)$ e posição do maior retângulo vazio.
+        \end{itemize}
+
+        \column{0.5\textwidth}
+        \centering
+        \fbox{\parbox{4cm}{\centering \vspace{1cm} Canvas com Obstáculos \\ e \\ Retângulo Otimizado \vspace{1cm}}}
+        % Espaço reservado para imagem se houvesse
+    \end{columns}
+\end{frame}
+
+% ============================================================================
+% SEÇÃO 2: MODELOS MATEMÁTICOS
+% ============================================================================
+\section{Modelos Matemáticos}
+
+\begin{frame}{Definição Formal}
+    Seja $\mathcal{S} = \{S_1, S_2, \dots, S_N\}$ o conjunto de formas a serem posicionadas no canvas $C = [0, W] \times [0, H]$.
+    
+    \vspace{0.3cm}
+    \textbf{Variáveis de Decisão:}
+    \begin{itemize}
+        \item $\mathbf{p}_i = (x_i, y_i)$: Posição da forma $S_i$.
+        \item $R = (x_R, y_R, w, h)$: O retângulo vazio.
+    \end{itemize}
+
+    \vspace{0.3cm}
+    \textbf{Restrições Gerais:}
+    \begin{enumerate}
+        \item \textbf{Contenção:} $S_i(\mathbf{p}_i) \subset C, \forall i$.
+        \item \textbf{Não-Sobreposição (Formas):} $S_i \cap S_j = \emptyset, \forall i \neq j$.
+        \item \textbf{Não-Sobreposição (Retângulo):} $R \cap S_i = \emptyset, \forall i$.
+    \end{enumerate}
+
+    \vspace{0.3cm}
+    \textbf{Função Objetivo:}
+    \[ \text{Maximizar } A(R) = w \cdot h \]
+\end{frame}
+
+\begin{frame}{Modelo 1: Programação Inteira Mista (MIP)}
+    \textbf{Simplificação:} Todas as formas são aproximadas por suas \textit{Bounding Boxes} (Caixas Envolventes).
+    
+    \vspace{0.3cm}
+    \textbf{Variáveis:}
+    \begin{itemize}
+        \item $x_i, y_i$: Coordenadas do canto inferior esquerdo da forma $i$.
+        \item $b_{ij}^k \in \{0, 1\}$: Variáveis binárias para separação relativa.
+    \end{itemize}
+
+    \vspace{0.3cm}
+    \textbf{Restrições de Não-Sobreposição (Big-M):}
+    Para cada par $(i, j)$, pelo menos uma deve ser ativa:
+    \begin{align*}
+        x_i + w_i &\le x_j + M(1 - b_{ij}^1) \quad (\text{i à esquerda de j}) \\
+        x_j + w_j &\le x_i + M(1 - b_{ij}^2) \quad (\text{j à esquerda de i}) \\
+        y_i + h_i &\le y_j + M(1 - b_{ij}^3) \quad (\text{i abaixo de j}) \\
+        y_j + h_j &\le y_i + M(1 - b_{ij}^4) \quad (\text{j abaixo de i}) \\
+        \sum_{k=1}^4 b_{ij}^k &\ge 1
+    \end{align*}
+\end{frame}
+
+\begin{frame}{Modelo 1: Função Objetivo Linearizada}
+    O solver MIP (CBC) requer funções lineares. A área $w \cdot h$ é quadrática.
+    
+    \vspace{0.5cm}
+    \textbf{Estratégia Adotada:}
+    Maximizar o \textbf{Perímetro} como proxy para a Área.
+    
+    \[ \text{Maximizar } Z = w + h \]
+    
+    \vspace{0.3cm}
+    \textit{Nota:} Embora correlacionado, maximizar o perímetro não garante a maximização da área (ex: retângulo $1 \times 100$ tem perímetro 202 e área 100, enquanto $50 \times 50$ tem perímetro 200 e área 2500).
+\end{frame}
+
+\begin{frame}{Modelo 2: Otimização Contínua (Metaheurística)}
+    \textbf{Abordagem:} Evolução Diferencial (Differential Evolution).
+    
+    \vspace{0.3cm}
+    \textbf{Codificação:} Vetor real $\mathbf{v} = [x_1, y_1, x_2, y_2, \dots, x_N, y_N]$.
+    
+    \vspace{0.3cm}
+    \textbf{Função de Custo (com Penalidade):}
+    \[ F(\mathbf{v}) = \begin{cases} 
+        - \text{Area}(R) & \text{se válido} \\
+        1000 + 10 \cdot (\text{Area}_{\text{overlap}} + \text{Area}_{\text{out}}) & \text{se inválido}
+    \end{cases}
+    \]
+    
+    \vspace{0.3cm}
+    \textbf{Cálculo da Área (Inner Problem):}
+    \begin{itemize}
+        \item Rasterização do canvas em uma grade binária.
+        \item Algoritmo de "Maior Retângulo em Histograma" ($O(N)$ por linha).
+    \end{itemize}
+\end{frame}
+
+% ============================================================================
+% SEÇÃO 3: SOLUÇÕES E IMPLEMENTAÇÃO
+% ============================================================================
+\section{Soluções e Implementação}
+
+\begin{frame}{Implementação Analítica (Python + PuLP)}
+    \begin{itemize}
+        \item \textbf{Biblioteca:} PuLP com solver CBC.
+        \item \textbf{Vantagem:} Garante a otimalidade global para o modelo simplificado (Bounding Box + Perímetro).
+        \item \textbf{Desvantagem:} Complexidade exponencial. O número de variáveis binárias cresce quadraticamente com o número de formas ($O(N^2)$).
+        \item \textbf{Tempo Limite:} Definido em 60 segundos.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Implementação Metaheurística (Scipy + Shapely)}
+    \begin{itemize}
+        \item \textbf{Algoritmo:} \texttt{scipy.optimize.differential\_evolution}.
+        \item \textbf{Geometria:} Biblioteca \texttt{Shapely} para cálculos exatos de interseção e área de sobreposição.
+        \item \textbf{Restrições Suaves (Soft Constraints):}
+        Em vez de rejeitar soluções inválidas, aplicamos uma penalidade proporcional ao erro. Isso cria um gradiente que guia o otimizador para regiões válidas.
+        \item \textbf{Heurística de Inicialização (4 Cantos):}
+        Um algoritmo guloso (Greedy) tenta empacotar as formas partindo dos 4 cantos (BL, BR, TL, TR). A melhor configuração inicializa a população.
+    \end{itemize}
+\end{frame}
+
+% ============================================================================
+% SEÇÃO 4: DISCUSSÃO E RESULTADOS
+% ============================================================================
+\section{Discussão e Resultados}
+
+\begin{frame}{Comparação de Resultados}
+    \begin{table}[]
+        \centering
+        \begin{tabular}{@{}lcc@{}}
+            \toprule
+            \textbf{Critério} & \textbf{Analítico (MIP)} & \textbf{Metaheurística (DE)} \\ \midrule
+            \textbf{Modelagem} & Simplificada (BBox) & Precisa (Polígonos Reais) \\
+            \textbf{Objetivo} & Perímetro ($w+h$) & Área ($w \cdot h$) \\
+            \textbf{Escalabilidade} & Baixa ($N < 10$) & Alta ($N > 20$) \\
+            \textbf{Tempo} & Rápido p/ poucos itens & Constante/Controlável \\
+            \textbf{Qualidade} & Ótimo do Modelo Simplif. & Ótimo Local (Alta Qualidade) \\ \bottomrule
+        \end{tabular}
+    \end{table}
+\end{frame}
+
+\begin{frame}{Análise de Desempenho}
+    \textbf{Observações dos Testes:}
+    \begin{itemize}
+        \item Para $N=5$, o método Analítico encontrou uma solução em \textbf{0.06s} com área $\approx 7760$.
+        \item A Metaheurística, com a inicialização dos 4 cantos, encontrou uma solução com área $\approx 7460$ em \textbf{103s}.
+        \item A diferença de área se deve à aproximação do MIP (que ignora a forma exata e maximiza perímetro) versus a busca estocástica do DE.
+    \end{itemize}
+
+    \vspace{0.5cm}
+    \textbf{Conclusão:}
+    \begin{itemize}
+        \item O \textbf{MIP} é ideal para layouts simples e retangulares com poucos itens.
+        \item A \textbf{Metaheurística} é superior para formas complexas e maior quantidade de itens, especialmente com a heurística de inicialização que evita mínimos locais ruins.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \centering
+    \Huge \textbf{Obrigado!}
+    
+    \vspace{1cm}
+    \large Perguntas?
+\end{frame}
+
+\end{document}

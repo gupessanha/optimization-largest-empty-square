@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 import time
+import math
+import copy
 from shapely.geometry import Polygon as ShapelyPolygon, Point
 from typing import List, Tuple, Any, Optional
 
@@ -164,68 +166,126 @@ class Canvas:
         plt.savefig(filename)
         plt.close(fig) # Fecha a figura para liberar memória
    
+def generate_random_shapes(canvas: Canvas, num_shapes: int, max_sides: int):
+    """
+    Gera formas aleatórias e as adiciona ao canvas.
+    
+    Args:
+        canvas (Canvas): O canvas alvo.
+        num_shapes (int): Quantidade de formas a gerar.
+        max_sides (int): Número máximo de lados (0 para círculos).
+    """
+    colors = ['red', 'blue', 'green', 'purple', 'brown', 'cyan', 'magenta', 'orange', 'yellow', 'gray']
+    
+    count = 0
+    attempts = 0
+    max_attempts = num_shapes * 100 # Evita loop infinito
+    
+    while count < num_shapes and attempts < max_attempts:
+        attempts += 1
+        
+        # Escolhe número de lados: 0 (círculo) ou 3 a max_sides
+        if max_sides < 3:
+            sides = 0
+        else:
+            # Lista de opções: 0 e 3..max_sides
+            options = [0] + list(range(3, max_sides + 1))
+            sides = random.choice(options)
+            
+        color = random.choice(colors)
+        
+        try:
+            if sides == 0:
+                # Círculo
+                # Raio aleatório (limite superior arbitrário para não encher demais, ex: 15% da menor dimensão)
+                max_radius = min(canvas.x_dimension, canvas.y_dimension) * 0.15
+                radius = random.uniform(1, max_radius)
+                
+                # Centro (garantindo que cabe no canvas)
+                # x entre radius e W-radius
+                if canvas.x_dimension <= 2 * radius or canvas.y_dimension <= 2 * radius:
+                    continue
+                    
+                cx = random.uniform(radius, canvas.x_dimension - radius)
+                cy = random.uniform(radius, canvas.y_dimension - radius)
+                
+                circle = Circle(center=(cx, cy), radius=radius, color=color)
+                canvas.add_circle(circle)
+                
+            else:
+                # Polígono
+                # Gera polígono convexo aleatório
+                # Raio aproximado do polígono
+                max_poly_radius = min(canvas.x_dimension, canvas.y_dimension) * 0.15
+                poly_radius = random.uniform(2, max_poly_radius)
+                
+                # Centro
+                if canvas.x_dimension <= 2 * poly_radius or canvas.y_dimension <= 2 * poly_radius:
+                    continue
 
+                cx = random.uniform(poly_radius, canvas.x_dimension - poly_radius)
+                cy = random.uniform(poly_radius, canvas.y_dimension - poly_radius)
+                
+                # Gera ângulos aleatórios
+                angles = sorted([random.uniform(0, 2 * math.pi) for _ in range(sides)])
+                
+                points = []
+                for angle in angles:
+                    x = cx + poly_radius * math.cos(angle)
+                    y = cy + poly_radius * math.sin(angle)
+                    points.append((x, y))
+                
+                polygon = Polygon(points=points, color=color)
+                canvas.add_polygon(polygon)
+                
+            count += 1
+            
+        except ValueError:
+            # Colisão ou inválido, tenta novamente
+            pass
+            
+    print(f"Geradas {count} formas em {attempts} tentativas.")
 
 if __name__ == "__main__":
  
-    canvas = Canvas(30, 30)
+    canvas = Canvas(100, 100)
     
-    # Adiciona primeiro objeto (sucesso)
-    triangle = Polygon(points=[(4, 6), (1, 2), (7, 2)], color='red')
-    canvas.add_polygon(triangle)
+    # Gera formas aleatórias para teste
+    generate_random_shapes(canvas, num_shapes=5, max_sides=8)
     
-    # Adiciona segundo objeto (sucesso)
-    # circle = Circle(center=(25, 5), radius=5, color='blue')
-    # canvas.add_circle(circle)
-    
-    square = Polygon(points=[(20, 20), (25, 20), (25, 25), (20, 25)], color='green')
-    canvas.add_polygon(square)
-    
-    triangle2 = Polygon(points=[(10, 25), (15, 28), (12, 22)], color='purple')
-    canvas.add_polygon(triangle2)
-    
-    square2 = Polygon(points=[(5, 15), (10, 15), (10, 20), (5, 20)], color='brown')
-    
-    triangle3 = Polygon(points=[(15, 5), (18, 10), (12, 10)], color='cyan')
-    canvas.add_polygon(triangle3)
-    
-    square3 = Polygon(points=[(22, 12), (27, 12), (27, 17), (22, 17)], color='magenta')
-    
-    # Adiciona um objeto que colide com o triângulo (falha)
-    # coliding_circle = Circle(center=(5, 5), radius=5, color='yellow')
-    # canvas.add_circle(coliding_circle)
-
     # --- SELEÇÃO DE MÉTODO ---
     print("Escolha o método de otimização:")
     print("1. Analítico (MIP - Exato)")
     print("2. Metaheurística (Differential Evolution - Aproximado)")
-    choice = input("Digite 1 ou 2: ").strip()
+    print("3. Ambos (Comparação)")
+    choice = input("Digite 1, 2 ou 3: ").strip()
     
-    use_analytical = (choice == '1')
+    run_analytical = (choice == '1' or choice == '3')
+    run_metaheuristic = (choice == '2' or choice == '3')
+    
+    # Salva estado inicial para restauração se necessário
+    initial_polygons_state = copy.deepcopy(canvas.polygons)
+    initial_circles_state = copy.deepcopy(canvas.circles)
     
     # --- GERAÇÃO DE ID ---
     timestamp_id = int(time.time())
-    prefix = 'A' if use_analytical else 'M'
-    execution_id = f"{prefix}_{timestamp_id}"
-    print(f"ID da Execução: {execution_id}")
-
-    print("Calculando maior retângulo na configuração inicial...")
-    # Salva o estado inicial
-    canvas.plot_workcanvas(filename=f'{execution_id}_initial.png')
     
-    resolution = 30
-    cx, cy, w, h = find_largest_rectangle(canvas, resolution=resolution)
-    initial_area = w * h
-    print(f"Inicial: Área={initial_area:.2f}")
+    if run_analytical:
+        prefix = 'A'
+        execution_id = f"{prefix}_{timestamp_id}"
+        print(f"ID da Execução Analítica: {execution_id}")
 
-    # Otimiza o layout
-    max_iter = 1000
-    # Requisito 3: Resolução reduzida durante otimização (ex: 5)
-    # Requisito 4: Usar GreedyPacker
-    start_time = time.time()
-    
-    if use_analytical:
+        print("Calculando maior retângulo na configuração inicial...")
+        # Salva o estado inicial
+        canvas.plot_workcanvas(filename=f'{execution_id}_initial.png')
+        
+        resolution = 30
+        cx, cy, w, h = find_largest_rectangle(canvas, resolution=resolution)
+        initial_area = w * h
+        print(f"Inicial: Área={initial_area:.2f}")
+
         # --- SOLUÇÃO ANALÍTICA ---
+        start_time = time.time()
         print("Iniciando Solução Analítica (MIP)...")
         analytical_solver = AnalyticalSolver(canvas.x_dimension, canvas.y_dimension)
         
@@ -271,24 +331,81 @@ if __name__ == "__main__":
         optimized_area = w_opt * h_opt
         print(f"Final (Analítico): Largura={w_opt:.2f}, Altura={h_opt:.2f}, Área={optimized_area:.2f}")
         
-    else:
-        # --- METAHEURÍSTICA ---
-        print("Iniciando Metaheurística (Differential Evolution)...")
-        actual_iterations = optimize_layout(canvas, max_iter=max_iter, resolution=5, use_greedy=True) 
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"Tempo de execução Analítico: {execution_time:.2f}s")
+
+        # Salva o estado otimizado
+        canvas.plot_workcanvas(filename=f'{execution_id}_optimized.png')
         
-        # Recalcula área final para registro
-        cx_opt, cy_opt, w_opt, h_opt = find_largest_rectangle(canvas, resolution=resolution)
-        optimized_area = w_opt * h_opt
-        print(f"Final (Metaheurística): Área={optimized_area:.2f}")
+        # Registra a execução
+        count_poly = len(canvas.polygons)
+        count_circle = len(canvas.circles)
+        register_execution('execution_log.csv', canvas.x_dimension, canvas.y_dimension, count_poly, count_circle, initial_area, optimized_area, actual_iterations, resolution, execution_time, execution_id)
 
-    end_time = time.time()
-    execution_time = end_time - start_time
-    print(f"Tempo de execução: {execution_time:.2f}s")
+    if run_metaheuristic:
+        # Restaura estado inicial se o analítico já rodou
+        if run_analytical:
+            print("Restaurando estado inicial para Metaheurística...")
+            canvas.polygons = copy.deepcopy(initial_polygons_state)
+            canvas.circles = copy.deepcopy(initial_circles_state)
+            # Recria geometry_objects para consistência (embora optimize_layout possa não usar diretamente, é bom manter)
+            canvas.geometry_objects = []
+            for poly in canvas.polygons:
+                canvas.geometry_objects.append(ShapelyPolygon(poly.points))
+            for circle in canvas.circles:
+                canvas.geometry_objects.append(Point(circle.center).buffer(circle.radius))
 
-    # Salva o estado otimizado
-    canvas.plot_workcanvas(filename=f'{execution_id}_optimized.png')
-    
-    # Registra a execução
-    count_poly = len(canvas.polygons)
-    count_circle = len(canvas.circles)
-    register_execution('execution_log.csv', canvas.x_dimension, canvas.y_dimension, count_poly, count_circle, initial_area, optimized_area, actual_iterations, resolution, execution_time, execution_id)
+        prefix = 'M'
+        execution_id = f"{prefix}_{timestamp_id}"
+        print(f"ID da Execução Metaheurística: {execution_id}")
+        
+        if not run_analytical: # Se não rodou analítico, precisa calcular inicial e salvar imagem
+            print("Calculando maior retângulo na configuração inicial...")
+            canvas.plot_workcanvas(filename=f'{execution_id}_initial.png')
+            resolution = 30
+            cx, cy, w, h = find_largest_rectangle(canvas, resolution=resolution)
+            initial_area = w * h
+            print(f"Inicial: Área={initial_area:.2f}")
+        
+        # --- METAHEURÍSTICA ---
+        start_time = time.time()
+        print("Iniciando Metaheurística (Differential Evolution)...")
+        max_iter = 3000
+        
+        try:
+            actual_iterations = optimize_layout(canvas, max_iter=max_iter, resolution=5, use_greedy=True) 
+            
+            # Recalcula área final para registro
+            cx_opt, cy_opt, w_opt, h_opt = find_largest_rectangle(canvas, resolution=resolution)
+            optimized_area = w_opt * h_opt
+            print(f"Final (Metaheurística): Área={optimized_area:.2f}")
+            
+        except Exception as e:
+            print(f"Erro durante a execução da Metaheurística: {e}")
+            # Em caso de erro, mantemos o estado atual (que pode estar inconsistente ou vazio se falhou no meio)
+            # Mas como optimize_layout limpa o canvas antes de reconstruir, pode estar vazio.
+            # Vamos tentar restaurar o inicial para garantir que o plot final não quebre ou mostre vazio
+            print("Restaurando estado inicial devido a erro...")
+            canvas.polygons = copy.deepcopy(initial_polygons_state)
+            canvas.circles = copy.deepcopy(initial_circles_state)
+            canvas.geometry_objects = []
+            for poly in canvas.polygons:
+                canvas.geometry_objects.append(ShapelyPolygon(poly.points))
+            for circle in canvas.circles:
+                canvas.geometry_objects.append(Point(circle.center).buffer(circle.radius))
+            
+            optimized_area = initial_area # Assume sem melhoria
+            actual_iterations = 0
+
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"Tempo de execução Metaheurística: {execution_time:.2f}s")
+
+        # Salva o estado otimizado
+        canvas.plot_workcanvas(filename=f'{execution_id}_optimized.png')
+        
+        # Registra a execução
+        count_poly = len(canvas.polygons)
+        count_circle = len(canvas.circles)
+        register_execution('execution_log.csv', canvas.x_dimension, canvas.y_dimension, count_poly, count_circle, initial_area, optimized_area, actual_iterations, resolution, execution_time, execution_id)

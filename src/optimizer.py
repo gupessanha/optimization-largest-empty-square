@@ -1,6 +1,7 @@
 import numpy as np
+import copy
 from scipy.optimize import differential_evolution
-from shapely.geometry import Polygon as ShapelyPolygon, Point
+from shapely.geometry import Polygon as ShapelyPolygon, Point, box
 from shapely import affinity
 from typing import List, Tuple, Any, Dict, Union
 
@@ -69,9 +70,27 @@ def objective_function(position_vector: np.ndarray, shape_templates: List[Any], 
             
         current_shapes.append(shape)
         
-    # Verifica colisão (Hard Constraint)
-    if check_collision(current_shapes, canvas_dims):
-        return 1e9 # Penalidade alta
+    # --- Soft Constraints (Penalidade Gradual) ---
+    total_overlap_area = 0.0
+    
+    # Calcular sobreposição entre todas as formas (O(N^2))
+    for i in range(num_shapes):
+        for j in range(i + 1, num_shapes):
+            if current_shapes[i].intersects(current_shapes[j]):
+                total_overlap_area += current_shapes[i].intersection(current_shapes[j]).area
+    
+    # Calcular área fora do canvas
+    W, H = canvas_dims
+    canvas_box = box(0, 0, W, H)
+    total_out_area = 0.0
+    for shape in current_shapes:
+        if not canvas_box.contains(shape):
+            total_out_area += shape.difference(canvas_box).area
+
+    # Se houver erro, o custo é dominado pelo erro
+    if total_overlap_area > 0 or total_out_area > 0:
+        # Penalidade base + proporcional ao erro
+        return 1000 + (total_overlap_area * 10) + (total_out_area * 10)
         
     # Se válido, calcula o maior retângulo
     # Precisamos criar um objeto 'MockCanvas' para passar para o solver
@@ -125,46 +144,90 @@ def optimize_layout(canvas: Any, max_iter: int = 10, resolution: int = 5, use_gr
     Returns:
         int: Número de iterações realizadas.
     """
-    # Backup dos objetos originais para restaurar propriedades (cor)
+    # Backup dos objetos originais para restaurar propriedades (cor) e recuperação de falhas
+    original_polygons_backup = copy.deepcopy(canvas.polygons)
+    original_circles_backup = copy.deepcopy(canvas.circles)
+    
+    # Referências para o loop de otimização (podem ser modificadas pelo Greedy)
     original_polygons = list(canvas.polygons)
     original_circles = list(canvas.circles)
     
-    # --- FASE 1: Inicialização Gulosa (Opcional) ---
+    # --- FASE 1: Inicialização Gulosa (4 Cantos) ---
     initial_positions_greedy = []
     
     if use_greedy:
-        print("Executando GreedyPacker para solução inicial...")
-        packer = GreedyPacker(canvas.x_dimension, canvas.y_dimension, step=1.0)
+        print("Executando GreedyPacker (Heurística 4 Cantos)...")
+        corners = ['BL', 'BR', 'TL', 'TR']
         
-        # Combina listas para o packer
-        shapes_to_pack = original_polygons + original_circles
-        packed_items = packer.pack(shapes_to_pack)
+        # Sempre usar o backup para garantir formas originais sem rotação acumulada
+        shapes_to_pack = original_polygons_backup + original_circles_backup
         
-        # Atualiza polígonos no canvas se houver rotação
-        # O packer retorna itens na ordem original
-        num_polys = len(original_polygons)
-        
-        for i, item in enumerate(packed_items):
-            # item['pos'] é (x, y)
-            x, y = item['pos']
-            initial_positions_greedy.extend([x, y])
+        best_greedy_score = float('inf')
+        best_greedy_config = None
+
+        for corner in corners:
+            # Instancia novo packer para cada tentativa (limpa placed_geometries)
+            packer = GreedyPacker(canvas.x_dimension, canvas.y_dimension, step=1.0)
             
-            if i < num_polys:
-                # É um polígono. Verifica rotação.
-                angle = item['rotation']
-                if angle != 0:
-                    # Atualiza o polígono original no canvas para refletir a rotação
-                    # Precisamos atualizar canvas.polygons[i]
-                    # O template será extraído deste polígono atualizado
-                    
-                    # item['final_geom'] é o objeto posicionado em (x,y)
-                    # Trazemos de volta para (0,0) para extrair os pontos relativos corretos depois
-                    final_geom = item['final_geom']
-                    centered_geom = affinity.translate(final_geom, xoff=-x, yoff=-y)
-                    
-                    new_points = list(centered_geom.exterior.coords)
-                    canvas.polygons[i].points = new_points
-                    print(f"Polígono {i} rotacionado em {angle} graus.")
+            # Executa packing para o canto específico
+            packed_items = packer.pack(shapes_to_pack, corner=corner)
+            
+            # Construir vetor de posições e templates temporários para avaliação
+            current_pos_vector = []
+            current_templates = []
+            current_poly_points = [] 
+            
+            # Processar itens (packed_items está ordenado por índice original)
+            
+            # Polígonos
+            for i in range(len(original_polygons_backup)):
+                item = packed_items[i]
+                x, y = item['pos']
+                current_pos_vector.extend([x, y])
+                
+                # Calcular template rotacionado para avaliação
+                final_geom = item['final_geom']
+                # Template relativo ao ponto de inserção (x,y)
+                # Nota: O DE usa centroide, mas aqui estamos definindo o estado inicial.
+                # Se passarmos esses pontos para o objective_function, ele vai reconstruir:
+                # new_points = [(px + x, py + y) for px, py in template]
+                # Então template deve ser points - (x,y)
+                relative_geom = affinity.translate(final_geom, xoff=-x, yoff=-y)
+                template_points = list(relative_geom.exterior.coords)
+                current_templates.append(template_points)
+                
+                # Salvar pontos absolutos
+                current_poly_points.append(list(final_geom.exterior.coords))
+
+            # Círculos
+            offset = len(original_polygons_backup)
+            for i in range(len(original_circles_backup)):
+                item = packed_items[offset + i]
+                x, y = item['pos']
+                current_pos_vector.extend([x, y])
+                current_templates.append((original_circles_backup[i].radius, 'circle'))
+            
+            # Avaliar configuração
+            score = objective_function(np.array(current_pos_vector), current_templates, (canvas.x_dimension, canvas.y_dimension), resolution)
+            print(f"  Canto {corner}: Score = {score:.2f}")
+            
+            if score < best_greedy_score:
+                best_greedy_score = score
+                best_greedy_config = {
+                    'pos_vector': current_pos_vector,
+                    'poly_points': current_poly_points,
+                    'corner': corner
+                }
+
+        print(f"Melhor estratégia: {best_greedy_config['corner']} (Score: {best_greedy_score:.2f})")
+        
+        # Aplicar a melhor configuração
+        initial_positions_greedy = best_greedy_config['pos_vector']
+        
+        # Atualizar polígonos no canvas com as rotações vencedoras
+        for i, points in enumerate(best_greedy_config['poly_points']):
+            canvas.polygons[i].points = points
+            # print(f"Polígono {i} atualizado para configuração do canto {best_greedy_config['corner']}.")
 
     # --- FASE 2: Preparação para DE ---
     
@@ -254,12 +317,50 @@ def optimize_layout(canvas: Any, max_iter: int = 10, resolution: int = 5, use_gr
         new_points = [(px + x, py + y) for px, py in template]
         
         # Cria novo objeto preservando cor
-        # Nota: original_poly.color é preservado, mas se houve rotação, original_poly.points estava desatualizado?
-        # Não, original_polygons foi copiado no início.
-        # Mas shape_templates reflete a rotação aplicada no canvas.polygons.
-        # Então new_points será a forma rotacionada na posição otimizada.
         new_poly = Polygon(new_points, color=original_poly.color)
-        canvas.add_polygon(new_poly)
+        
+        try:
+            canvas.add_polygon(new_poly)
+        except ValueError as e:
+            print(f"Erro ao adicionar polígono {i} otimizado: {e}")
+            
+            # Tentativa de Recuperação 1: Ajuste de Limites (Clamping)
+            if "fora dos limites" in str(e):
+                print(f"Tentando ajustar posição do polígono {i} para dentro do canvas...")
+                # Calcula bounds atuais
+                xs = [p[0] for p in new_poly.points]
+                ys = [p[1] for p in new_poly.points]
+                min_x, max_x = min(xs), max(xs)
+                min_y, max_y = min(ys), max(ys)
+                
+                dx = 0
+                dy = 0
+                
+                if min_x < 0: dx = -min_x
+                elif max_x > canvas.x_dimension: dx = canvas.x_dimension - max_x
+                
+                if min_y < 0: dy = -min_y
+                elif max_y > canvas.y_dimension: dy = canvas.y_dimension - max_y
+                
+                if dx != 0 or dy != 0:
+                    adjusted_points = [(p[0] + dx, p[1] + dy) for p in new_poly.points]
+                    adjusted_poly = Polygon(adjusted_points, color=original_poly.color)
+                    try:
+                        canvas.add_polygon(adjusted_poly)
+                        print(f"Polígono {i} ajustado com sucesso.")
+                        current_idx += 1
+                        continue
+                    except ValueError as e2:
+                        print(f"Falha no ajuste: {e2}")
+
+            # Tentativa de Recuperação 2: Restaurar Original (se possível)
+            print(f"Tentando restaurar polígono {i} original...")
+            try:
+                # Usa o backup profundo para garantir estado original
+                canvas.add_polygon(original_polygons_backup[i])
+                print(f"Polígono {i} restaurado para posição original.")
+            except ValueError as e3:
+                print(f"Não foi possível restaurar o polígono {i}: {e3}. O polígono será ignorado.")
         
         current_idx += 1
         
@@ -269,8 +370,39 @@ def optimize_layout(canvas: Any, max_iter: int = 10, resolution: int = 5, use_gr
         # template é (radius, 'circle')
         
         new_circle = Circle((x, y), original_circle.radius, color=original_circle.color)
-        canvas.add_circle(new_circle)
         
+        try:
+            canvas.add_circle(new_circle)
+        except ValueError as e:
+            print(f"Erro ao adicionar círculo {i} otimizado: {e}")
+            
+            # Tentativa de Recuperação 1: Ajuste de Limites (Clamping)
+            if "fora dos limites" in str(e) or "excede os limites" in str(e):
+                print(f"Tentando ajustar posição do círculo {i} para dentro do canvas...")
+                cx, cy = new_circle.center
+                r = new_circle.radius
+                
+                # Clamp center
+                new_cx = max(r, min(canvas.x_dimension - r, cx))
+                new_cy = max(r, min(canvas.y_dimension - r, cy))
+                
+                adjusted_circle = Circle((new_cx, new_cy), r, color=original_circle.color)
+                try:
+                    canvas.add_circle(adjusted_circle)
+                    print(f"Círculo {i} ajustado com sucesso.")
+                    current_idx += 1
+                    continue
+                except ValueError as e2:
+                    print(f"Falha no ajuste: {e2}")
+
+            # Tentativa de Recuperação 2: Restaurar Original
+            print(f"Tentando restaurar círculo {i} original...")
+            try:
+                canvas.add_circle(original_circles_backup[i])
+                print(f"Círculo {i} restaurado para posição original.")
+            except ValueError as e3:
+                print(f"Não foi possível restaurar o círculo {i}: {e3}. O círculo será ignorado.")
+
         current_idx += 1
         
     return result.nit
