@@ -67,9 +67,40 @@
 
         \column{0.5\textwidth}
         \centering
-        \fbox{\parbox{4cm}{\centering \vspace{1cm} Canvas com Obstáculos \\ e \\ Retângulo Otimizado \vspace{1cm}}}
+        \includegraphics[width=\linewidth]{A_1764733018_optimized.png}
         % Espaço reservado para imagem se houvesse
     \end{columns}
+\end{frame}
+
+\begin{frame}{Exemplo Visual de Soluções}
+    \centering
+    \begin{columns}
+        \column{0.33\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{A_1764732618_initial.png}
+        \par\vspace{0.2cm}
+        \tiny \textbf{Estado Inicial}
+        
+        \column{0.33\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{A_1764732618_optimized.png}
+        \par\vspace{0.2cm}
+        \tiny \textbf{Analítico (MIP)} \\ Área: 708.42
+        
+        \column{0.33\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{M_1764732618_optimized.png}
+        \par\vspace{0.2cm}
+        \tiny \textbf{Metaheurística (DE)} \\ Área: 739.00
+    \end{columns}
+
+    \vspace{0.5cm}
+    \footnotesize
+    Comparação visual para uma instância com 5 polígonos.
+    \begin{itemize}
+        \item \textbf{Analítico:} Solução compacta, otimizada para perímetro (proxy).
+        \item \textbf{Metaheurística:} Solução alternativa, neste caso encontrando uma área ligeiramente maior.
+    \end{itemize}
 \end{frame}
 
 % ============================================================================
@@ -187,34 +218,54 @@
 % ============================================================================
 \section{Discussão e Resultados}
 
-\begin{frame}{Comparação de Resultados}
-    \begin{table}[]
-        \centering
-        \begin{tabular}{@{}lcc@{}}
-            \toprule
-            \textbf{Critério} & \textbf{Analítico (MIP)} & \textbf{Metaheurística (DE)} \\ \midrule
-            \textbf{Modelagem} & Simplificada (BBox) & Precisa (Polígonos Reais) \\
-            \textbf{Objetivo} & Perímetro ($w+h$) & Área ($w \cdot h$) \\
-            \textbf{Escalabilidade} & Baixa ($N < 10$) & Alta ($N > 20$) \\
-            \textbf{Tempo} & Rápido p/ poucos itens & Constante/Controlável \\
-            \textbf{Qualidade} & Ótimo do Modelo Simplif. & Ótimo Local (Alta Qualidade) \\ \bottomrule
-        \end{tabular}
-    \end{table}
-\end{frame}
-
-\begin{frame}{Análise de Desempenho}
-    \textbf{Observações dos Testes:}
+\begin{frame}{Tempo de Execução vs. Complexidade (Escalabilidade)}
+    \textbf{Método A (Analítico):}
     \begin{itemize}
-        \item Para $N=5$, o método Analítico encontrou uma solução em \textbf{0.06s} com área $\approx 7760$.
-        \item A Metaheurística, com a inicialização dos 4 cantos, encontrou uma solução com área $\approx 7460$ em \textbf{103s}.
-        \item A diferença de área se deve à aproximação do MIP (que ignora a forma exata e maximiza perímetro) versus a busca estocástica do DE.
+        \item Extremamente rápido em cenários simples (1 a 6 formas): frações de segundo (0.01s - 0.11s).
+        \item \textbf{Salto de complexidade:} Comportamento bimodal. Salta de $\sim 0.1$s ($<10$ formas) para $\sim 50-60$s (15+ formas). Sugere complexidade exponencial.
     \end{itemize}
 
     \vspace{0.5cm}
-    \textbf{Conclusão:}
+    \textbf{Método M (Metaheurística):}
     \begin{itemize}
-        \item O \textbf{MIP} é ideal para layouts simples e retangulares com poucos itens.
-        \item A \textbf{Metaheurística} é superior para formas complexas e maior quantidade de itens, especialmente com a heurística de inicialização que evita mínimos locais ruins.
+        \item Consistentemente mais lento. Média de $\sim 41$s mesmo para uma única forma.
+        \item Curva de crescimento menos abrupta, mas opera em patamar superior (40s a 200s).
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Qualidade da Solução (Área Encontrada)}
+    \textbf{Superioridade do Método Analítico (A):}
+    \begin{itemize}
+        \item Encontrou áreas maiores em \textbf{87.5\%} dos casos testados.
+    \end{itemize}
+
+    \vspace{0.3cm}
+    \textbf{Degradação do Método M em alta complexidade:}
+    \begin{itemize}
+        \item \textbf{Poucas formas (1-6):} Resultados próximos ao Analítico (diferença $< 2\%$).
+        \item \textbf{Alta complexidade (15-20):} Performance desaba.
+        \begin{itemize}
+            \item Método A: média $\approx 5500-7000$.
+            \item Método M: cai para $\approx 1400-4000$.
+        \end{itemize}
+    \end{itemize}
+    
+    \vspace{0.2cm}
+    \textit{Indicação:} A Metaheurística tem dificuldade em convergir para ótimos globais em espaços de busca muito restritos.
+\end{frame}
+
+\begin{frame}{Conclusão Geral}
+    \textbf{Método Analítico (A):}
+    \begin{itemize}
+        \item Claramente superior neste conjunto de dados.
+        \item Melhor eficiência de tempo e qualidade final, especialmente em cenários complexos.
+    \end{itemize}
+
+    \vspace{0.5cm}
+    \textbf{Metaheurística (M):}
+    \begin{itemize}
+        \item Viável apenas para instâncias muito simples (empate em qualidade, perde em tempo).
+        \item Áreas menores em casos complexos (15+ formas) sugerem prisão em ótimos locais ou tempo insuficiente para exploração.
     \end{itemize}
 \end{frame}
 
